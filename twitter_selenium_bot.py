@@ -1,57 +1,90 @@
+import os
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-import time
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from dotenv import load_dotenv
 
-# === CONFIGURATION ===
-USERNAME = "uzakitu@gmail.com"
-PASSWORD = "@Uzakitu2024!"
-TWEET_TEXT = "This is an automated tweet using Selenium! 🚀"
+# === Load environment variables ===
+load_dotenv()
+USERNAME = os.getenv("TWITTER_USERNAME")
+EMAIL = os.getenv("TWITTER_EMAIL")
+PASSWORD = os.getenv("TWITTER_PASSWORD")
+TWEET_TEXT = os.getenv("TWEET_TEXT")
 
-# === SETUP CHROME OPTIONS ===
-options = Options()
-# Uncomment to run headless (no browser window)
-# options.add_argument('--headless')
-options.add_argument("--disable-blink-features=AutomationControlled")
-options.add_argument("--start-maximized")
+# === Set up Chrome ===
+def create_driver(headless=False):
+    options = Options()
+    if headless:
+        options.add_argument("--headless")
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    return webdriver.Chrome(options=options)
 
-# === START CHROME DRIVER ===
-driver = webdriver.Chrome(options=options)
-
-try:
-    # === OPEN TWITTER LOGIN PAGE ===
+# === Login Function ===
+def login(driver):
     driver.get("https://twitter.com/login")
-    time.sleep(5)
+    wait = WebDriverWait(driver, 15)
 
-    # === STEP 1: ENTER USERNAME ===
-    username_input = driver.find_element(By.NAME, "text")
+    # Step 1: Enter username/email
+    username_input = wait.until(EC.presence_of_element_located((By.NAME, "text")))
+    username_input.send_keys(EMAIL)
+    username_input.send_keys(Keys.RETURN)
+    time.sleep(2)
+
+    # step 1.1: Enter username/email
+    username_input = wait.until(EC.presence_of_element_located((By.NAME, "text")))
     username_input.send_keys(USERNAME)
     username_input.send_keys(Keys.RETURN)
-    time.sleep(3)
+    time.sleep(2)
 
-    # === STEP 2: ENTER PASSWORD ===
-    password_input = driver.find_element(By.NAME, "password")
+    # Step 2: Enter password
+    password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
     password_input.send_keys(PASSWORD)
     password_input.send_keys(Keys.RETURN)
-    time.sleep(5)
 
-    # === STEP 3: CLICK ON TWEET TEXT AREA ===
-    tweet_box = driver.find_element(By.CSS_SELECTOR, "div[aria-label='Tweet text']")
-    tweet_box.click()
-    time.sleep(2)
-    tweet_box.send_keys(TWEET_TEXT)
-    time.sleep(2)
+    # Wait for homepage
+    wait.until(EC.presence_of_element_located((By.XPATH, "//a[@href='/home']")))
+    print("✅ Logged in successfully.")
 
-    # === STEP 4: CLICK TWEET BUTTON ===
-    tweet_button = driver.find_element(By.XPATH, "//div[@data-testid='tweetButtonInline']")
-    tweet_button.click()
-    time.sleep(3)
+# === Tweet Function ===
+def post_tweet(driver, text):
+    wait = WebDriverWait(driver, 15)
 
-    print("✅ Tweet posted successfully!")
+    try:
+        tweet_box = wait.until(EC.presence_of_element_located((By.XPATH, "//div[@data-testid='tweetTextarea_0']")))
+        tweet_box.click()
+        tweet_box.send_keys(text)
+        time.sleep(1)
 
-except Exception as e:
-    print(f"❌ An error occurred: {e}")
+        tweet_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@data-testid='tweetButtonInline']")))
+        tweet_button.click()
+        print("✅ Tweet posted!")
 
-finally:
-    driver.quit()
+    except Exception as e:
+        print(f"❌ Failed to post tweet: {e}")
+
+# === Main Script ===
+def main():
+    if not USERNAME or not PASSWORD or not TWEET_TEXT:
+        print("❌ Missing .env configuration. Check TWITTER_USERNAME, TWITTER_PASSWORD, TWEET_TEXT.")
+        return
+
+    driver = create_driver(headless=False)
+    try:
+        login(driver)
+        time.sleep(5)
+        post_tweet(driver, TWEET_TEXT)
+    except Exception as e:
+        import traceback
+        print("❌ Error during bot execution:")
+        traceback.print_exc()
+    finally:
+        time.sleep(5)
+        driver.quit()
+
+if __name__ == "__main__":
+    main()
